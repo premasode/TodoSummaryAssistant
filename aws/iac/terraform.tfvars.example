@@ -1,0 +1,8 @@
+aws_region        = "us-east-1"
+environment       = "production"
+ec2_instance_type = "t3.micro"
+db_instance_class = "db.t3.micro"
+db_name           = "todo_db"
+db_username       = "todouser"
+db_password       = "ChangeMeToSecurePassword123!"
+admin_ssh_cidr    = "203.0.113.50/32" # Replace with your public IP address

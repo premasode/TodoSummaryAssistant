@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  # MySQL Database Service
+  db:
+    image: mysql:8.0
+    container_name: todo-mysql-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tiger}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-todo_db}
+      MYSQL_USER: ${MYSQL_USER:-todouser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-todopassword}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptiger"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - todo-network
+
+  # Backend Spring Boot Service
+  backend:
+    build:
+      context: ./Backend/todo-summary-assistant
+      dockerfile: Dockerfile
+    container_name: todo-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/${MYSQL_DATABASE:-todo_db}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-todouser}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-todopassword}
+      COHERE_API_KEY: ${COHERE_API_KEY:-YOUR_COHERE_API_KEY}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-YOUR_WEBHOOK_URL}
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8080,http://localhost"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - todo-network
+
+  # Frontend React SPA Service
+  frontend:
+    build:
+      context: ./Frontend/todo
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_BASE_URL: http://localhost:8080/api/todos
+    container_name: todo-frontend
+    restart: always
+    ports:
+      - "3000:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - todo-network
+
+  # Node Exporter for Host/Container Metrics
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: todo-node-exporter
+    restart: always
+    ports:
+      - "9100:9100"
+    networks:
+      - todo-network
+
+  # Prometheus Monitoring Service
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: todo-prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      - backend
+      - node-exporter
+    networks:
+      - todo-network
+
+  # Grafana Dashboard & Visualization Service
+  grafana:
+    image: grafana/grafana:10.3.3
+    container_name: todo-grafana
+    restart: always
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - todo-network
+
+networks:
+  todo-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  grafana_data:

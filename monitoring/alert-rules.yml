@@ -1,0 +1,62 @@
+groups:
+  - name: todo_application_alerts
+    rules:
+      # -----------------------------------------------------------------------
+      # Alert 1: Backend Service Availability Failure (Critical)
+      # -----------------------------------------------------------------------
+      - alert: BackendServiceDown
+        expr: up{job="spring-boot-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend Application Container is Down"
+          description: "Spring Boot backend instance {{ $labels.instance }} has been unreachable for over 1 minute."
+
+      # -----------------------------------------------------------------------
+      # Alert 2: High HTTP 5xx Error Rate (Critical)
+      # -----------------------------------------------------------------------
+      - alert: HighBackendErrorRate
+        expr: (sum(rate(http_server_requests_seconds_count{status=~"5.*"}[5m])) / sum(rate(http_server_requests_seconds_count[5m]))) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP 5xx Error Rate Detected"
+          description: "Backend HTTP 5xx error rate is above 5% over the last 5 minutes (Current value: {{ $value }}%)."
+
+      # -----------------------------------------------------------------------
+      # Alert 3: High Host CPU Utilization (Warning)
+      # -----------------------------------------------------------------------
+      - alert: HighHostCpuUsage
+        expr: (100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU Usage Warning"
+          description: "Host CPU usage on {{ $labels.instance }} has exceeded 85% for 5 consecutive minutes."
+
+      # -----------------------------------------------------------------------
+      # Alert 4: Low Disk Space Available (Warning)
+      # -----------------------------------------------------------------------
+      - alert: LowDiskSpace
+        expr: ((node_filesystem_avail_bytes{mountpoint="/"} * 100) / node_filesystem_size_bytes{mountpoint="/"}) < 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low Host Disk Space"
+          description: "Host disk space available on {{ $labels.instance }} is below 15%."
+
+      # -----------------------------------------------------------------------
+      # Alert 5: Database Connection Pool Outage (Critical)
+      # -----------------------------------------------------------------------
+      - alert: DatabaseConnectionFailed
+        expr: hikaricp_connections_creation_seconds_count{job="spring-boot-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database Connection Failure"
+          description: "Spring Boot HikariCP connection pool cannot reach or query the MySQL database."
