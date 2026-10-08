@@ -72,7 +72,7 @@ jobs:
   build-and-push:
     name: Build & Push Docker Images
     needs: [backend-ci, frontend-ci]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.DOCKER_HUB_USERNAME != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -121,8 +121,9 @@ jobs:
   deploy:
     name: Deploy to AWS EC2 & Health Check
     needs: [build-and-push]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.EC2_HOST != ''
     runs-on: ubuntu-latest
+
     steps:
       - name: SSH Deployment and Container Orchestration
         uses: appleboy/ssh-action@v1.0.3
